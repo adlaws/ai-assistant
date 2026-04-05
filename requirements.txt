@@ -4,3 +4,5 @@ requests
 python-magic
 pdfplumber
 pillow
+markdown
+python-docx

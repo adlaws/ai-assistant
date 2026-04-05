@@ -1,6 +1,4 @@
-"""
-Semantic Document Indexer
-=========================
+"""Semantic Document Indexer
 
 A local RAG (Retrieval-Augmented Generation) system that indexes documents
 from specified directories and enables natural language querying using
@@ -8,7 +6,9 @@ Ollama-based LLMs and ChromaDB for vector storage.
 
 Supported File Types:
 - Text files (.txt)
+- Markdown files (.md)
 - PDF documents (.pdf)
+- Microsoft Word documents (.docx)
 - Images (.png, .jpg, .jpeg, .gif, .bmp, .webp)
 
 Features:
@@ -21,7 +21,7 @@ Usage:
     python src/indexer.py
 
 Requirements:
-    pip install chromadb ollama requests python-magic pdfplumber pillow
+    pip install chromadb ollama requests python-magic pdfplumber pillow markdown python-docx
 """
 
 import os
@@ -31,12 +31,14 @@ import requests
 import traceback
 import pdfplumber
 from PIL import Image
+import markdown
+from docx import Document
 
 # =====================
 # CONFIGURATION
 # =====================
 
-DATA_DIR = "M:\\Documents\\2026"  # Folder containing your documents to index
+DATA_DIR = "my_documents"  # Folder containing your documents to index
 DB_PATH = "./chroma_db"           # Where the vector database will be stored persistently
 EMBEDDING_MODEL = "nomic-embed-text"  # Text embedding model from Ollama
 LLM_MODEL = "qwen3.5:9b"          # Primary LLM for generating responses
@@ -266,6 +268,50 @@ def process_pdf_file(filepath: str) -> str:
         return ""
 
 
+def process_markdown_file(filepath: str) -> str:
+    """Extract and convert markdown content to plain text."""
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            markdown_text = f.read()
+        # Convert markdown to plain text (rendering HTML and removing HTML tags)
+        html = markdown.markdown(markdown_text)
+        # Strip HTML tags
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, 'html.parser')
+        text = soup.get_text()
+        # Clean up excessive whitespace
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return '\n'.join(lines)
+    except ImportError:
+        # If BeautifulSoup not installed, use simple HTML tag removal
+        import re
+        html = markdown.markdown(markdown_text)
+        text = re.sub('<.*?>', '', html)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        return '\n'.join(lines)
+    except Exception as e:
+        print(f"Error reading markdown file {filepath}: {str(e)}")
+        return ""
+
+
+def process_word_document(filepath: str) -> str:
+    """Extract text content from a Microsoft Word document."""
+    try:
+        doc = Document(filepath)
+        paragraphs = []
+        for para in doc.paragraphs:
+            text = para.text.strip()
+            if text:
+                paragraphs.append(text)
+        return '\n'.join(paragraphs)
+    except ImportError:
+        print(f"Error: python-docx not installed. Install with: pip install python-docx")
+        return ""
+    except Exception as e:
+        print(f"Error reading Word document {filepath}: {str(e)}")
+        return ""
+
+
 def extract_image_description(image_path: str) -> str:
     """Extract metadata and description from an image file for indexing."""
     try:
@@ -288,6 +334,8 @@ def extract_image_description(image_path: str) -> str:
 FILE_HANDLERS = {
     ".txt": process_text_file,
     ".pdf": process_pdf_file,
+    ".md": process_markdown_file,
+    ".docx": process_word_document,
     ".png": lambda p: extract_image_description(p),
     ".jpg": lambda p: extract_image_description(p),
     ".jpeg": lambda p: extract_image_description(p),
@@ -445,7 +493,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("       SEMANTIC DOCUMENT INDEXER".center(40))
     print("=" * 60)
-    print(f"Supported formats: .txt, .pdf, .png, .jpg, .jpeg, .gif, .bmp, .webp")
+    print(f"Supported formats: .txt, .md, .pdf, .docx, .png, .jpg, .jpeg, .gif, .bmp, .webp")
     print(f"Embedding model: {EMBEDDING_MODEL}")
     print(f"LLM model: {LLM_MODEL}")
     print("=" * 60)

@@ -38,5 +38,15 @@
       "branch": "master",
       "filePath": "skills/python-reviewer"
     }
+  },
+  "frontend-design": {
+    "sha": "928950704df8a8b885c03de5da626331e6f29cf8",
+    "installedAt": "2026-04-05T10:49:25.846Z",
+    "sourceRepo": {
+      "owner": "adlaws",
+      "repo": "ai-skills-collection",
+      "branch": "master",
+      "filePath": "skills/frontend-design"
+    }
   }
 }
