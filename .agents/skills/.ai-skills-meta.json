@@ -48,5 +48,25 @@
       "branch": "master",
       "filePath": "skills/frontend-design"
     }
+  },
+  "javascript-developer": {
+    "sha": "03e596d95d260f727f01c81f0ade9f851ec93216",
+    "installedAt": "2026-04-05T11:06:52.280Z",
+    "sourceRepo": {
+      "owner": "adlaws",
+      "repo": "ai-skills-collection",
+      "branch": "master",
+      "filePath": "skills/javascript-developer"
+    }
+  },
+  "javascript-code-reviewer": {
+    "sha": "3711d3adf6600b4056b85ac26f5477e1a36da33a",
+    "installedAt": "2026-04-05T11:06:52.887Z",
+    "sourceRepo": {
+      "owner": "adlaws",
+      "repo": "ai-skills-collection",
+      "branch": "master",
+      "filePath": "skills/javascript-code-reviewer"
+    }
   }
 }

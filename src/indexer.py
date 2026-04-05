@@ -38,7 +38,7 @@ from docx import Document
 # CONFIGURATION
 # =====================
 
-DATA_DIR = "my_documents"  # Folder containing your documents to index
+DATA_DIR = "M:\\Documents\\2026"  # Folder containing your documents to index
 DB_PATH = "./chroma_db"           # Where the vector database will be stored persistently
 EMBEDDING_MODEL = "nomic-embed-text"  # Text embedding model from Ollama
 LLM_MODEL = "qwen3.5:9b"          # Primary LLM for generating responses
@@ -64,10 +64,10 @@ def call_ollama_api(endpoint: str, **kwargs) -> dict:
         requests.ConnectionError: If unable to connect to Ollama server
     """
     url = f"http://localhost:11434/api/{endpoint}"
-    
+
     # Add streaming=false to get full response at once
     kwargs["stream"] = False
-    
+
     response = requests.post(url, json=kwargs, timeout=120)
 
     # Debug: print raw response for troubleshooting on any non-2xx status or error
@@ -90,7 +90,7 @@ def call_ollama_api(endpoint: str, **kwargs) -> dict:
         if line.startswith(('DEBUG:', 'INFO:', 'WARNING:', 'stderr:')):
             continue
         cleaned_lines.append(line)
-    
+
     cleaned_response = '\n'.join(cleaned_lines).strip()
 
     # Try to parse cleaned response as JSON
@@ -173,10 +173,10 @@ def get_ollama_response(prompt: str) -> str:
 class OllamaEmbeddingFunction:
     """
     ChromaDB-compatible embedding function wrapper for Ollama.
-    
+
     This class provides the required methods for ChromaDB integration.
     """
-    
+
     def __init__(self, model_name: str = EMBEDDING_MODEL):
         """Initialize the embedding function."""
         self.model_name = model_name
@@ -193,7 +193,7 @@ class OllamaEmbeddingFunction:
         """
         # ChromaDB passes input as a list of strings
         input_list = input if isinstance(input, list) else [input]
-        
+
         embeddings = []
         for text in input_list:
             if text is not None and len(text) > 0:
@@ -202,7 +202,7 @@ class OllamaEmbeddingFunction:
             else:
                 embeddings.append([0.0] * 512)
         return embeddings
-    
+
     def embed_query(self, text: str) -> list[float]:
         """
         Generate an embedding for a single query text.
@@ -214,11 +214,11 @@ class OllamaEmbeddingFunction:
             The embedding vector as a list of floats
         """
         return get_ollama_embedding(text)
-    
+
     def name(self) -> str:
         """Return the name of this embedding function for ChromaDB."""
         return "ollama-" + self.model_name
-    
+
     def get(self) -> list[float]:
         """Generate embedding for a single document (ChromaDB compatibility)."""
         if not self.model_name:
@@ -378,7 +378,7 @@ def index_documents(collection, data_dir: str) -> int:
 
                 # Add document with Ollama embeddings
                 embedding = emb_fn([content])[0]
-                
+
                 collection.add(
                     documents=[content],
                     ids=[f"{ext}_{filename}"],

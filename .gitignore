@@ -1,3 +1,7 @@
 .venv
 chroma_db
 my_documents
+__pychache__
+*.pyc
+*.pyo
+*.pyd

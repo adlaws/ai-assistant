@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semantic-doc-indexer"
+version = "1.0.0"
+description = "A semantic document indexer using Ollama and ChromaDB"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "chromadb>=0.5.0",
+    "ollama>=0.3.0",
+    "requests>=2.31.0",
+    "python-magic>=0.4.27",
+    "pdfplumber>=0.10.0",
+    "pillow>=10.0.0",
+    "markdown>=3.5.0",
+    "python-docx>=1.0.0",
+]
+
+[project.scripts]
+indexer = "src.indexer.main:run_indexer"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["indexer*"]
+
+[tool.setuptools]
+py-modules = []

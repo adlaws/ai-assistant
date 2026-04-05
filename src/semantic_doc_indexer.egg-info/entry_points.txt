@@ -1,0 +1,2 @@
+[console_scripts]
+indexer = src.indexer.main:run_indexer

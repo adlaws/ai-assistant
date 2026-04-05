@@ -1,0 +1,13 @@
+pyproject.toml
+src/indexer/__init__.py
+src/indexer/api_client.py
+src/indexer/chroma_client.py
+src/indexer/config.py
+src/indexer/file_handlers.py
+src/indexer/main.py
+src/semantic_doc_indexer.egg-info/PKG-INFO
+src/semantic_doc_indexer.egg-info/SOURCES.txt
+src/semantic_doc_indexer.egg-info/dependency_links.txt
+src/semantic_doc_indexer.egg-info/entry_points.txt
+src/semantic_doc_indexer.egg-info/requires.txt
+src/semantic_doc_indexer.egg-info/top_level.txt
