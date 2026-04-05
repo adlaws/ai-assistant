@@ -59,16 +59,63 @@ def run_indexer() -> None:
     print("=" * 60)
     print()
     
-    # Initialize clients
-    print(f"Connecting to Ollama at {OLLAMA_BASE_URL}...")
+    # Check Ollama availability
+    print(f"Checking Ollama availability at {OLLAMA_BASE_URL}...")
     try:
-        client = create_client()
-        print(f"Connected to Ollama")
+        import requests
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if response.status_code != 200:
+            raise Exception(f"Failed to retrieve model list: {response.status_code}")
+    except Exception as e:
+        print(f"  Cannot connect to Ollama: {e}")
+        print()
+        print("Attempting to continue without Ollama...")
+        print("(Note: Some features may not work without Ollama)")
+        print()
+        client = None
+        print()
+    else:
+        print("Connected to Ollama")
+        print()
+        # Check model availability
+        models_response = response.json()
+        available_models = [m['name'] for m in models_response.get('models', [])]
+        print(f"Available models: {', '.join(available_models)}" if available_models else "Available models: None")
+        print()
+        
+        # Check if required models are available
+        models_to_check = [EMBEDDING_MODEL, LLM_MODEL]
+        missing_models = []
+        for model_name in models_to_check:
+            # Allow partial matching (e.g., "nomic-embed-text" matches "nomic-embed-text:latest")
+            found = any(model_name in avail for avail in available_models)
+            if not found:
+                missing_models.append(model_name)
+        
+        if missing_models:
+            print(f"WARNING: Following models not found: {', '.join(missing_models)}")
+            print(f"  Available models: {', '.join(available_models)}" if available_models else "  Available models: None")
+            print("  Using default models or skipping indexing if models are required")
+            print()
+            # Don't exit, let the application continue with limited functionality
+            client = None
+        else:
+            print(f"Using embedding model: {EMBEDDING_MODEL}")
+            print(f"Using LLM model: {LLM_MODEL}")
+            # Initialize client if models are available
+            try:
+                client = create_client()
+            except Exception as e:
+                print(f"Failed to create client: {e}")
+                sys.exit(1)
+            print()
+        print()
+    print()
+    # Print models if client is available
+    if client and available_models:
         print(f"Using embedding model: {EMBEDDING_MODEL}")
         print(f"Using LLM model: {LLM_MODEL}")
-    except Exception as e:
-        print(f"Failed to connect to Ollama: {e}")
-        sys.exit(1)
+        print()
     print()
     
     # Initialize ChromaDB
