@@ -12,7 +12,10 @@ from indexer.config import (
     LLM_MODEL,
     DEFAULT_N_RESULTS,
     OLLAMA_BASE_URL,
-    API_TIMEOUT
+    API_TIMEOUT,
+    compute_file_hash,
+    load_cache,
+    save_cache
 )
 from indexer.api_client import OllamaClient, create_client
 from indexer.chroma_client import ChromaClient, create_client as create_chroma_client
@@ -103,24 +106,40 @@ def run_indexer() -> None:
             print(f"    - {filename}")
     print()
     
-    # Check if documents need indexing
+    # Load cache
+    cache = load_cache()
     existing_ids = chroma_client.get_ids()
     print("Checking documents...")
     
     files_to_index = []
+    skipped_by_cache = []
+    skipped_no_id = []
+    
     for filepath in files:
         filename = filepath.split('/')[-1]
         doc_id = str(uuid.uuid4())
         
-        # Check if already indexed
-        if doc_id in existing_ids:
-            print(f"    - {filename} (already indexed)")
-            continue
+        # Compute file hash
+        file_hash = compute_file_hash(filepath)
+        
+        # Check if already in cache
+        if file_hash in cache:
+            if doc_id in existing_ids:
+                print(f"    - {filename} (unchanged, skipped)")
+                skipped_by_cache.append(filename)
+                continue
+            else:
+                # File changed, need to re-index
+                print(f"    - {filename} (changed, re-indexing)")
+        else:
+            # New file
+            print(f"    - {filename} (new file)")
         
         files_to_index.append({
             'filepath': filepath,
             'filename': filename,
-            'doc_id': doc_id
+            'doc_id': doc_id,
+            'file_hash': file_hash
         })
     
     if files_to_index:
@@ -148,13 +167,36 @@ def run_indexer() -> None:
                 
                 print(f"   Indexed: {item['filename']}")
                 
+                # Update cache
+                cache[item['file_hash']] = {
+                    'doc_id': item['doc_id'],
+                    'filepath': item['filepath']
+                }
+            
             except Exception as e:
                 print(f"   Could not index {item['filename']}: {e}")
         
         print()
-        print(f"Total documents in database: {chroma_client.count()}")
+        
+        # Save cache
+        save_cache(cache)
+        
+        # Print cache stats
+        print(f"Cache updated. {len(cache)} document(s) cached.")
+        if skipped_by_cache:
+            print(f"    Skipped unchanged: {', '.join(skipped_by_cache)}")
+        if skipped_no_id:
+            print(f"    Skipped (no ID): {', '.join(skipped_no_id)}")
     else:
         print("All documents already indexed")
+    print()
+    
+    # Print cache info
+    cache_file = DATA_DIR.parent / 'chroma_db' / 'document_cache.json'
+    if cache_file.exists():
+        with open(cache_file, 'r', encoding='utf-8') as f:
+            cache_data = f.read()
+            print(f"Current cache size: {len(cache_data)} bytes")
     print()
     
     # Run interactive query loop
