@@ -1,0 +1,6 @@
+chromadb
+ollama
+requests
+python-magic
+pdfplumber
+pillow
