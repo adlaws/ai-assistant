@@ -1,4 +1,15 @@
-"""Semantic Document Indexer Package."""
+"""Indexer module exports."""
 
-__version__ = "1.0.0"
-__all__ = []
+from __future__ import annotations
+
+from .indexer import (
+    index_file,
+    index_documents,
+    get_file_handler,
+)
+
+__all__ = [
+    'index_file',
+    'index_documents',
+    'get_file_handler',
+]

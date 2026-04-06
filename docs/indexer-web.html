@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Document Indexer</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .search-box {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        #query-input {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            transition: border-color 0.3s;
+        }
+        #query-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        #results {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            min-height: 100px;
+        }
+        .result-item {
+            border-bottom: 1px solid #eee;
+            padding: 15px 0;
+        }
+        .result-item:last-child {
+            border-bottom: none;
+        }
+        .result-id {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 5px;
+        }
+        .result-content {
+            font-size: 15px;
+            line-height: 1.6;
+            color: #444;
+            white-space: pre-wrap;
+        }
+        .result-metadata {
+            font-size: 13px;
+            color: #666;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #ddd;
+        }
+        .summary-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .summary-section h3 {
+            color: #495057;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        .summary-content {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #212529;
+            white-space: pre-wrap;
+        }
+        .download-link {
+            color: #007bff;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .download-link:hover {
+            text-decoration: underline;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+        }
+        .error {
+            background: #fff3f3;
+            border: 1px solid #ffd6d6;
+            color: #c53030;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        .no-results {
+            text-align: center;
+            color: #666;
+            padding: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Semantic Document Indexer</h1>
+
+        <div class="search-box">
+            <input type="text" id="query-input" placeholder="Enter your question or search query...">
+            <button class="btn" id="search-btn" onclick="searchDocuments()">Search</button>
+        </div>
+
+        <div id="results">
+            <div class="no-results">
+                Enter a question above and click Search to find answers in the indexed documents.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Search endpoint
+        const API_BASE = window.location.origin;
+
+        async function searchDocuments() {
+            const query = document.getElementById('query-input').value.trim();
+            const resultsDiv = document.getElementById('results');
+            const searchBtn = document.getElementById('search-btn');
+
+            if (!query) {
+                resultsDiv.innerHTML = '<div class="error">Please enter a search query.</div>';
+                return;
+            }
+
+            // Show loading
+            searchBtn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading">Searching... Please wait.</div>';
+
+            try {
+                // Use text-based search with query vector
+                const response = await fetch(`${API_BASE}/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    resultsDiv.innerHTML = `<div class="error">${escapeHtml(data.error)}</div>`;
+                    return;
+                }
+
+                if (!data.summary && (!data.sources || data.sources.length === 0)) {
+                    resultsDiv.innerHTML = '<div class="no-results">No results found for your query. Try different keywords.</div>';
+                    return;
+                }
+
+                // Display summary
+                let html = '';
+                if (data.summary) {
+                    html += `
+                        <div class="summary-section">
+                            <h3>Summary Answer</h3>
+                            <div class="summary-content">${escapeHtml(data.summary)}</div>
+                        </div>
+                    `;
+                }
+
+                // Display sources
+                if (data.sources && data.sources.length > 0) {
+                    html += '<h3>Sources</h3>';
+                    data.sources.forEach((source, index) => {
+                        const downloadUrl = `${API_BASE}/download/${encodeURIComponent(source.filename)}`;
+                        html += `
+                            <div class="result-item">
+                                <div class="result-id">Source ${index + 1}: ${escapeHtml(source.filename)}</div>
+                                <div class="result-content">${escapeHtml(source.preview)}</div>
+                                <div class="result-metadata">
+                                    <strong>Type:</strong> ${escapeHtml(source.type)} |
+                                    <a href="${downloadUrl}" target="_blank" class="download-link">Download File</a>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                resultsDiv.innerHTML = html;
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<div class="error">Error: ${escapeHtml(error.message)}</div>`;
+            } finally {
+                searchBtn.disabled = false;
+            }
+        }
+
+        // Allow Enter key to search
+        document.getElementById('query-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchDocuments();
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Focus input on load
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('query-input').focus();
+        });
+    </script>
+</body>
+</html>

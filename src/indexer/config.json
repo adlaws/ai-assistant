@@ -1,0 +1,13 @@
+{
+    "document_folders": [
+        "data"
+    ],
+    "chromadb_path": "chroma_db",
+    "embedding_model": "nomic-embed-text",
+    "llm_model": "qwen3.5:9b",
+    "collection_name": "documents",
+    "default_n_results": 2,
+    "ollama_base_url": "http://localhost:11434",
+    "ollama_timeout": 120,
+    "enable_api_key_auth": false
+}

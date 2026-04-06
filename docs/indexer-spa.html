@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document Semantic Search - AI Assistant</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --secondary: #ec4899;
+      --bg: #0f172a;
+      --bg-secondary: #1e293b;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --success: #22c55e;
+      --warning: #f59e0b;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+      padding: 2rem;
+      background: linear-gradient(135deg, var(--bg-secondary), var(--bg));
+      border-radius: 1rem;
+      border: 1px solid var(--border);
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+    }
+
+    .search-section {
+      background: var(--bg-secondary);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid var(--border);
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 1rem;
+      font-size: 1rem;
+      border: 2px solid var(--border);
+      border-radius: 0.5rem;
+      background: var(--bg);
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .search-input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .btn {
+      padding: 0.75rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 1rem;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-2px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .stats {
+      display: flex;
+      gap: 2rem;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: var(--bg-secondary);
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+    }
+
+    .stat {
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--primary);
+    }
+
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .results-section {
+      background: var(--bg-secondary);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      border: 1px solid var(--border);
+      min-height: 200px;
+    }
+
+    .results-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-count {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .result-item {
+      padding: 1rem;
+      margin-bottom: 1rem;
+      background: var(--bg);
+      border-radius: 0.5rem;
+      border: 1px solid var(--border);
+      transition: transform 0.2s;
+    }
+
+    .result-item:hover {
+      transform: translateX(5px);
+      border-color: var(--primary);
+    }
+
+    .result-source {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .result-content {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-similarity {
+      font-size: 0.8rem;
+      color: var(--primary);
+    }
+
+    .loading {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      border: 3px solid var(--border);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s linear infinite;
+      margin: 0 auto 1rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+
+    .empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 Document Search</h1>
+      <p class="subtitle">Semantic search across your indexed documents</p>
+    </header>
+
+    <section class="search-section">
+      <input 
+        type="text" 
+        id="queryInput" 
+        class="search-input"
+        placeholder="Ask a question about your documents..."
+      >
+      <button id="searchBtn" class="btn btn-primary">Search</button>
+    </section>
+
+    <section class="stats" id="statsSection" style="display: none;">
+      <div class="stat">
+        <div class="stat-value" id="docCount">0</div>
+        <div class="stat-label">Documents Indexed</div>
+      </div>
+    </section>
+
+    <section class="results-section">
+      <div class="results-header">
+        <h2 id="resultsTitle">Results</h2>
+        <span class="result-count" id="resultCount"></span>
+      </div>
+      <div id="resultsContent">
+        <div class="empty-state">
+          <div class="empty-icon">📚</div>
+          <p>No results yet. Ask a question above to search your documents.</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <p>AI Semantic Document Indexer &copy; 2026</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = './api';
+
+    // DOM Elements
+    const queryInput = document.getElementById('queryInput');
+    const searchBtn = document.getElementById('searchBtn');
+    const resultsContent = document.getElementById('resultsContent');
+    const resultsTitle = document.getElementById('resultsTitle');
+    const resultCount = document.getElementById('resultCount');
+    const statsSection = document.getElementById('statsSection');
+    const docCount = document.getElementById('docCount');
+
+    // Get document count
+    async function getDocumentCount() {
+      try {
+        const response = await fetch(`${API_BASE}/documents/count`);
+        const data = await response.json();
+        docCount.textContent = data.count;
+        statsSection.style.display = 'flex';
+      } catch (error) {
+        console.log('Could not fetch document count:', error);
+      }
+    }
+
+    // Display loading state
+    function setLoading(loading) {
+      if (loading) {
+        searchBtn.disabled = true;
+        searchBtn.textContent = 'Searching...';
+        queryInput.disabled = true;
+        resultsContent.innerHTML = `
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Searching documents...</p>
+          </div>
+        `;
+        resultsTitle.textContent = 'Searching...';
+        resultCount.textContent = '';
+      } else {
+        searchBtn.disabled = false;
+        searchBtn.textContent = 'Search';
+        queryInput.disabled = false;
+      }
+    }
+
+    // Display results
+    function displayResults(results) {
+      if (!results || results.length === 0) {
+        resultsContent.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <p>No matching documents found. Try a different query.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const resultsHtml = results.map(result => {
+        const source = result.metadata?.source || 'Unknown';
+        const similarity = (result.distance || 0).toFixed(2);
+        
+        return `
+          <div class="result-item">
+            <div class="result-source">📄 ${source}</div>
+            <div class="result-content">${escapeHtml(result.document)}</div>
+            <div class="result-similarity">Similarity: ${similarity}</div>
+          </div>
+        `;
+      }).join('');
+
+      resultsContent.innerHTML = resultsHtml;
+      resultCount.textContent = `${results.length} result(s)`;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Perform search
+    async function performSearch(query) {
+      if (!query.trim()) return;
+
+      setLoading(true);
+
+      try {
+        const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        displayResults(data.results);
+      } catch (error) {
+        resultsContent.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">❌</div>
+            <p>Error: ${error.message}</p>
+          </div>
+        `;
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    // Event Listeners
+    searchBtn.addEventListener('click', () => {
+      const query = queryInput.value.trim();
+      if (query) {
+        performSearch(query);
+      }
+    });
+
+    queryInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        const query = queryInput.value.trim();
+        if (query) {
+          performSearch(query);
+        }
+      }
+    });
+
+    // Initialize
+    getDocumentCount();
+  </script>
+</body>
+</html>
