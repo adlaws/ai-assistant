@@ -8,7 +8,7 @@ import time
 import os
 from typing import Optional
 
-from .config import (
+from src.indexer.config import (
     DATA_DIR,
     DB_PATH,
     EMBEDDING_MODEL,
@@ -20,37 +20,38 @@ from .config import (
     load_cache,
     save_cache,
 )
-from .api_client import OllamaClient, create_client as create_ollama_client
-from .chroma_client import ChromaClient, create_client as create_chroma_client
-from .file_handlers import get_handler
-from .exceptions import OllamaError, ChromaDBError, FileProcessingError
+from src.indexer.api_client import OllamaClient, create_client as create_ollama_client
+from src.indexer.chroma_client import ChromaClient, create_client as create_chroma_client
+from src.indexer.file_handlers import get_handler
+from src.indexer.exceptions import OllamaError, ChromaDBError, FileProcessingError
 
 __all__ = ['run_indexer']
 
 
 def get_default_prompt_template() -> str:
-    """
-    Get a default prompt for generating responses.
+    """Get a default prompt for generating responses.
 
-    Returns:
-        str: Default prompt template
+    :return: Default prompt template
     """
     return "You are an AI assistant with access to documents. Please answer the following question based on the provided context:\n\nContext: {context}\n\nQuestion: {question}\n\nAnswer:"
 
 
 def generate_embedding(text: str, client: OllamaClient) -> list[float]:
+    """Generate embedding for a text.
+
+    :param text: Text to embed
+    :param client: Ollama client
+    :return: Embedding vector
+    :raises EmbeddingError: If embedding generation fails
     """
-    Generate embedding for a text.
+    return client.get_embedding(text)
 
-    Args:
-        text: Text to embed
-        client: Ollama client
 
-    Returns:
-        list[float]: Embedding vector
+def run_indexer() -> None:
+    """Run the document indexer.
 
-    Raises:
-        EmbeddingError: If embedding generation fails
+    :raises SystemExit: If Ollama or ChromaDB initialization fails
+    """
     print("=" * 60)
     print("Semantic Document Indexer")
     print("=" * 60)

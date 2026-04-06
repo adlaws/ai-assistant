@@ -1,183 +1,277 @@
-"""ChromaDB client for vector storage."""
+"""ChromaDB client with Ollama embeddings."""
 
 from __future__ import annotations
 
+import logging
+from typing import Any, Callable, Optional
+
 import chromadb
-import os
-import json
+from chromadb.config import Settings
+from chromadb.utils import embedding_functions
 
-from src.indexer.config import DB_PATH, COLLECTION_NAME
+from src.indexer.api_client import create_client as create_ollama_client
+from src.indexer import index_file, get_file_handler
+from src.indexer.config import COLLECTION_NAME, DB_PATH, IndexerConfig
+from src.indexer.exceptions import ChromaDBError, OllamaError
 
+logger = logging.getLogger(__name__)
 
-class OllamaEmbeddingFunction:
-    """ChromaDB-compatible embedding function for Ollama."""
-
-    def __init__(self, model_name: str = None):
-        self.model_name = model_name or 'nomic-embed-text'
-
-        # Ollama API base URL and timeout
-        import os
-        OLLAMA_BASE_URL = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434').rstrip('/')
-        self.timeout = int(os.environ.get('OLLAMA_TIMEOUT', '120'))
-        self.embedding_model = model_name or 'nomic-embed-text'
-        self.base_url = OLLAMA_BASE_URL
-
-    def _call_ollama_api(self, endpoint: str, **kwargs) -> dict:
-        """Make an HTTP request to the Ollama API."""
-        import requests
-        url = f"{self.base_url or OLLAMA_BASE_URL}/api/{endpoint}"
-        kwargs["stream"] = False
-        response = requests.post(url, json=kwargs, timeout=self.timeout)
-
-        if response.status_code != 200:
-            raise requests.HTTPError(f"HTTP {response.status_code}: {response.text}")
-
-        # Clean response (strip INFO/DEBUG lines)
-        response_text = response.text.strip()
-        lines = response_text.split('\n')
-        cleaned_lines = [line for line in lines if not line.startswith(('DEBUG:', 'INFO:', 'WARNING:'))]
-        cleaned_response = '\n'.join(cleaned_lines).strip()
-
-        return json.loads(cleaned_response)
-
-    def get_embedding(self, text: str) -> list:
-        """Generate embedding for text via Ollama API."""
-        import requests
-        if not text or len(text.strip()) == 0:
-            return [0.0] * 512
-
-        try:
-            response = self._call_ollama_api(
-                "embeddings",
-                model=self.embedding_model,
-                prompt=text
-            )
-            return response.get("embedding", [])
-        except Exception as e:
-            print(f"[WARNING] Embedding error: {str(e)}")
-            return [0.0] * 512
-
-    def __call__(self, input):
-        """Generate embeddings for multiple texts."""
-        input_list = input if isinstance(input, list) else [input]
-        embeddings = []
-
-        for text in input_list:
-            if text and len(text) > 0:
-                embeddings.append(self.get_embedding(text))
-            else:
-                embeddings.append([0.0] * 512)
-
-        return embeddings
-
-    def embed_query(self, text: str) -> list:
-        """Generate embedding for a single query."""
-        return self.get_embedding(text)
-
-    def name(self) -> str:
-        return "ollama-" + self.model_name
+# Constants for ChromaDB configuration
+DEFAULT_COLLECTION_NAME = "documents"
+DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
+DEFAULT_DB_PATH = "chroma_db"
 
 
 class ChromaClient:
-    """Client for interacting with ChromaDB."""
+    """Client for ChromaDB with Ollama embeddings."""
 
-    def __init__(self, path: str = None):
+    def __init__(
+        self,
+        collection_name: str = DEFAULT_COLLECTION_NAME,
+        embedding_model: Optional[str] = DEFAULT_EMBEDDING_MODEL,
+        db_path: Optional[str] = DEFAULT_DB_PATH,
+        create_if_missing: bool = False
+    ) -> None:
+        """Initialize ChromaDB client.
+
+        :param collection_name: Name of the collection to create/use
+        :param embedding_model: Name of the Ollama embedding model (e.g., "nomic-embed-text")
+        :param db_path: Path to persistent ChromaDB storage
+        :param create_if_missing: Whether to create collection if it doesn't exist
+        :raises ChromaDBError: If ChromaDB initialization fails
         """
-        Initialize the ChromaDB client.
+        self.collection_name = collection_name
+        self.db_path = db_path
 
-        Args:
-            path: Path to persistent storage (default from config)
+        # Get configuration
+        config = IndexerConfig()
+
+        try:
+            if db_path:
+                self.client = chromadb.PersistentClient(path=str(db_path))
+            else:
+                self.client = chromadb.Client()
+            self.collection = self.client.get_or_create_collection(
+                name=collection_name,
+                embedding_function=embedding_functions.DefaultEmbeddingFunction()  # Placeholder
+            )
+
+            self.embedding_fn: Optional[Callable[[str], list[float]]] = self._create_embedding_fn(embedding_model)
+
+            if create_if_missing and self.embedding_fn is not None:
+                # Check if collection already has documents
+                try:
+                    existing_count = self.collection.count()
+                    if existing_count == 0:
+                        # Recreate collection with correct embedding function only if empty
+                        self.client.delete_collection(collection_name)
+                        self.collection = self.client.get_or_create_collection(
+                            name=collection_name,
+                            embedding_function=embedding_functions.OllamaEmbeddingFunction(
+                                url=config.ollama_base_url,
+                                model_name=embedding_model or config.embedding_model
+                            )
+                        )
+                except Exception:
+                    # If we can't check count, assume recreation is needed
+                    self.client.delete_collection(collection_name)
+                    self.collection = self.client.get_or_create_collection(
+                        name=collection_name,
+                        embedding_function=embedding_functions.OllamaEmbeddingFunction(
+                            url=config.ollama_base_url,
+                            model_name=embedding_model or config.embedding_model
+                        )
+                    )
+        except Exception as e:
+            raise ChromaDBError(f"Failed to initialize ChromaDB client: {e}") from e
+
+    def _create_embedding_fn(self, model: Optional[str] = DEFAULT_EMBEDDING_MODEL) -> Optional[Callable[[str], list[float]]]:
+        """Create Ollama embedding function.
+
+        :param model: Name of the Ollama embedding model
+        :return: Callable that takes text and returns embedding vector, or None if creation fails
+        :raises OllamaError: If Ollama client creation fails
         """
-        self.path = path or DB_PATH
-        self.client = chromadb.PersistentClient(path=self.path)
-        self.collection = self.get_collection()
+        if not model:
+            model = DEFAULT_EMBEDDING_MODEL
 
-    def get_collection(self, name: str = COLLECTION_NAME) -> chromadb.Collection:
+        try:
+            ollama_client = create_ollama_client()
+
+            def embedding_fn(text: str) -> list[float]:
+                return ollama_client.get_embedding(text)
+
+            return embedding_fn
+        except OllamaError as e:
+            logger.error("Error creating embedding function: %s", str(e))
+            return None
+
+    def add_document(self, content: str, metadata: Optional[dict[str, Any]] = None) -> None:
+        """Add a document to the collection.
+
+        :param content: Document content
+        :param metadata: Optional metadata dictionary
+        :raises ChromaDBError: If adding document fails
+        :raises OllamaError: If embedding generation fails
         """
-        Get or create a collection for storing text documents.
+        if self.embedding_fn is None:
+            raise ChromaDBError("No embedding function available")
 
-        Args:
-            name: Collection name (default from config)
+        try:
+            embedding = self.embedding_fn(content)
 
-        Returns:
-            chromadb.Collection: The collection instance
+            self.collection.add(
+                documents=[content],
+                embeddings=[embedding],
+                metadatas=[metadata] if metadata else [{"source": "api"}]
+            )
+        except Exception as e:
+            raise ChromaDBError(f"Failed to add document: {e}") from e
+
+    def add_documents(
+        self,
+        documents: list[str],
+        ids: list[str],
+        embeddings: Optional[list[list[float]]] = None,
+        metadatas: Optional[list[dict[str, Any]]] = None
+    ) -> None:
+        """Add multiple documents to the collection.
+
+        :param documents: List of document contents
+        :param ids: List of document IDs
+        :param embeddings: Optional list of embeddings
+        :param metadatas: Optional list of metadata dictionaries
+        :raises ChromaDBError: If adding documents fails
         """
-        # Use OllamaEmbeddingFunction for consistency with indexing
-        emb_fn = OllamaEmbeddingFunction()
+        if self.embedding_fn is None and embeddings is None:
+            raise ChromaDBError("No embedding function available and no embeddings provided")
 
-        collection = self.client.get_or_create_collection(
-            name=name,
-            embedding_function=emb_fn,
-            metadata={"description": "Text document embeddings"}
-        )
-        return collection
+        try:
+            if embeddings is None and self.embedding_fn is not None:
+                embeddings = [self.embedding_fn(doc) for doc in documents]
+
+            self.collection.add(
+                documents=documents,
+                ids=ids,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+        except Exception as e:
+            raise ChromaDBError(f"Failed to add documents: {e}") from e
+
+    def search(self, query: str, n_results: int = 5) -> list[dict[str, Any]]:
+        """Search for similar documents.
+
+        :param query: Search query string
+        :param n_results: Number of results to return
+        :return: List of matching results
+        :raises ChromaDBError: If search fails
+        :raises OllamaError: If embedding generation fails
+        """
+        if self.embedding_fn is None:
+            raise ChromaDBError("No embedding function available")
+
+        try:
+            query_embedding = self.embedding_fn(query)
+
+            results = self.collection.query(
+                query_embeddings=[query_embedding],
+                n_results=n_results
+            )
+
+            return results
+        except Exception as e:
+            raise ChromaDBError(f"Search failed: {e}") from e
+
+    def list_documents(self) -> list[dict[str, Any]]:
+        """Retrieve all documents stored in the collection.
+
+        :return: List of all documents found
+        :raises ChromaDBError: If retrieval fails
+        """
+        try:
+            # ChromaDB's get() method retrieves all documents metadata, embeddings, etc.
+            results = self.collection.get(
+                include=['documents', 'metadatas', 'embeddings']
+            )
+
+            documents = []
+            if results.get('documents') and results.get('metadatas'):
+                docs = results['documents']
+                metas = results['metadatas']
+                embeddings = results.get('embeddings', [])
+
+                for i, (doc, meta) in enumerate(zip(docs, metas)):
+                    embedding = None
+                    if embeddings and len(embeddings) > i:
+                        embedding = embeddings[i]
+                    documents.append({
+                        'id': i,
+                        'content': doc,
+                        'metadata': meta,
+                        'embedding': embedding
+                    })
+            return documents
+        except Exception as e:
+            raise ChromaDBError(f"Failed to list documents: {e}") from e
 
     def count(self) -> int:
-        """
-        Get the number of documents in the collection.
+        """Get the number of documents in the collection.
 
-        Returns:
-            int: Number of documents
+        :return: Number of documents
+        :raises ChromaDBError: If count retrieval fails
         """
-        return self.collection.count()
+        try:
+            return self.collection.count()
+        except Exception as e:
+            raise ChromaDBError(f"Failed to get document count: {e}") from e
 
     def get_ids(self) -> set[str]:
-        """
-        Get all document IDs in the collection.
+        """Get all document IDs in the collection.
 
-        Returns:
-            set[str]: Set of document IDs
+        :return: Set of document IDs
+        :raises ChromaDBError: If ID retrieval fails
         """
-        result = self.collection.get()
-        return set(result.get('ids', []))
+        try:
+            results = self.collection.get(include=[])
+            return set(results.get('ids', []))
+        except Exception as e:
+            raise ChromaDBError(f"Failed to get document IDs: {e}") from e
 
-    def add_documents(self, documents: list[str], ids: list[str],
-                      embeddings: list[list[float]], metadatas: list[dict] = None) -> None:
-        """
-        Add documents to the collection.
+    def delete_collection(self) -> None:
+        """Delete the current collection.
 
-        Args:
-            documents: List of document texts
-            ids: List of unique IDs for each document
-            embeddings: List of embedding vectors
-            metadatas: Optional list of metadata dictionaries
+        :raises ChromaDBError: If deletion fails
         """
-        self.collection.add(
-            documents=documents,
-            ids=ids,
-            embeddings=embeddings,
-            metadatas=metadatas or []
+        try:
+            self.client.delete_collection(self.collection_name)
+            self.collection = None  # Clear the reference
+            logger.info("Deleted collection: %s", self.collection_name)
+        except Exception as e:
+            logger.error("Could not delete collection %s: %s", self.collection_name, str(e))
+            self.collection = None  # Clear reference even on error
+
+    def create_client(self, db_path: Optional[str] = DEFAULT_DB_PATH) -> "ChromaClient":
+        """Create and return a ChromaClient instance.
+
+        :param db_path: Optional path to ChromaDB storage
+        :return: ChromaClient instance
+        :raises ChromaDBError: If client creation fails
+        """
+        return ChromaClient(
+            collection_name=COLLECTION_NAME,
+            db_path=db_path
         )
 
-    def query(self, query_embeddings: list[list[float]], n_results: int = 2) -> dict:
-        """
-        Query the collection for similar documents.
 
-        Args:
-            query_embeddings: List of query embedding vectors
-            n_results: Number of results to return
+def create_client(db_path: Optional[str] = DEFAULT_DB_PATH) -> ChromaClient:
+    """Create and return a ChromaClient instance.
 
-        Returns:
-            dict: Query results containing documents, ids, distances, metadatas
-        """
-        return self.collection.query(
-            query_embeddings=query_embeddings,
-            n_results=n_results
-        )
-
-    def delete_collection(self, name: str = None) -> None:
-        """
-        Delete a collection (use with caution).
-
-        Args:
-            name: Collection name to delete (default: default collection)
-        """
-        if name is None:
-            self.client.delete_collection(self.collection.name)
-        else:
-            self.client.delete_collection(name)
-
-
-def create_client(path: str = None) -> ChromaClient:
-    """Create and return a ChromaDB client instance."""
-    return ChromaClient(path=path)
+    :param db_path: Optional path to ChromaDB storage
+    :return: ChromaClient instance
+    :raises ChromaDBError: If client creation fails
+    """
+    return ChromaClient(
+        collection_name=COLLECTION_NAME,
+        db_path=db_path
+    )

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import List, Optional
@@ -17,6 +18,8 @@ from .indexer.api_client import create_client as create_ollama_client
 from .indexer.config import DB_PATH
 from .indexer.exceptions import OllamaError, ChromaDBError, EmbeddingError
 
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
     title="Semantic Document Indexer API",
     description="API for semantic document search using Ollama and ChromaDB",
@@ -29,8 +32,12 @@ ollama_client = create_ollama_client()
 
 
 @app.on_event("startup")
-async def startup_event():
-    """Index documents on startup."""
+async def startup_event() -> None:
+    """Index documents on startup.
+
+    :param chroma_client: ChromaDB client instance
+    :raises Exception: If document indexing fails
+    """
     try:
         from .indexer.indexer import index_documents
         from .indexer.config import DATA_DIR
@@ -38,8 +45,8 @@ async def startup_event():
         # Try to delete existing collection (ignore if it doesn't exist)
         try:
             chroma_client.delete_collection()
-        except Exception:
-            pass  # Collection might not exist
+        except Exception as e:
+            logger.debug("[DEBUG] Failed to delete collection: %s", e)
 
         # Recreate collection
         chroma_client.collection = chroma_client.client.get_or_create_collection(
@@ -49,17 +56,17 @@ async def startup_event():
 
         # Index documents
         count = index_documents(chroma_client, str(DATA_DIR))
-        print(f"[STARTUP] Indexed {count} documents")
+        logger.info("[STARTUP] Indexed %d documents", count)
     except Exception as e:
-        print(f"[STARTUP WARNING] Could not index documents: {e}")
+        logger.warning("[STARTUP WARNING] Could not index documents: %s", e)
         # Try to recreate collection even if indexing failed
         try:
             chroma_client.collection = chroma_client.client.get_or_create_collection(
                 name=chroma_client.collection_name,
                 embedding_function=chromadb.utils.embedding_functions.DefaultEmbeddingFunction()
             )
-        except Exception:
-            pass
+        except Exception as e2:
+            logger.debug("[DEBUG] Failed to recreate collection: %s", e2)
 
 
 # Pydantic models
@@ -92,21 +99,6 @@ class HealthResponse(BaseModel):
     ollama_available: bool
 
 
-# Response model for documents
-class DocumentResponse(BaseModel):
-    content: str
-    metadata: dict
-
-
-@app.get("/")
-async def root():
-    """Serve the web interface HTML file."""
-    web_path = Path(__file__).parent.parent / 'docs' / 'indexer-web.html'
-    if web_path.exists():
-        return FileResponse(web_path)
-    return HTML_TEMPLATE
-
-
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -125,8 +117,11 @@ HTML_TEMPLATE = """
 
 
 @app.get("/")
-async def root():
-    """Serve the web interface."""
+async def root() -> FileResponse | str:
+    """Serve the web interface HTML file.
+
+    :return: HTML file response or fallback template
+    """
     web_path = Path(__file__).parent.parent / 'docs' / 'indexer-web.html'
     if web_path.exists():
         return FileResponse(web_path)
@@ -134,14 +129,13 @@ async def root():
 
 
 @app.get("/documents", response_model=List[DocumentResponse])
-async def get_documents(n: int = Query(100, ge=1, le=1000)):
+async def get_documents(n: int = Query(100, ge=1, le=1000)) -> List[DocumentResponse]:
     """Get all indexed documents.
 
-    Args:
-        n: Maximum number of documents to return
+    :param n: Maximum number of documents to return
+    :return: List of documents
 
-    Returns:
-        List of documents
+    :raises HTTPException: If database error occurs
     """
     try:
         documents = chroma_client.list_documents()
@@ -167,15 +161,14 @@ async def get_documents(n: int = Query(100, ge=1, le=1000)):
 async def search_documents(
     query: str = Query(..., min_length=1, max_length=1000),
     n: int = Query(5, ge=1, le=50)
-):
+) -> SearchResponse:
     """Search for documents similar to the query text.
 
-    Args:
-        query: Search query text
-        n: Number of results to return
+    :param query: Search query text
+    :param n: Number of results to return
+    :return: Search results with matching documents
 
-    Returns:
-        Search results with matching documents
+    :raises HTTPException: If service or database error occurs
     """
     try:
         results = chroma_client.search(query, n_results=n)
@@ -230,8 +223,13 @@ Please provide a clear, concise summary that directly answers the question using
 
 
 @app.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Health check endpoint."""
+async def health_check() -> HealthResponse:
+    """Health check endpoint.
+
+    :return: Health status information
+
+    :raises HTTPException: If health check fails
+    """
     try:
         doc_count = chroma_client.count()
 
@@ -254,14 +252,13 @@ async def health_check():
 
 
 @app.post("/index")
-async def index_documents(request: IndexRequest):
+async def index_documents(request: IndexRequest) -> dict:
     """Add a new document to the index.
 
-    Args:
-        request: Document content and metadata
+    :param request: Document content and metadata
+    :return: Success message
 
-    Returns:
-        Success message
+    :raises HTTPException: If embedding or database error occurs
     """
     try:
         chroma_client.add_document(
@@ -279,11 +276,12 @@ async def index_documents(request: IndexRequest):
 
 
 @app.post("/reindex")
-async def reindex_documents():
+async def reindex_documents() -> dict:
     """Re-index all documents from the data directory.
 
-    Returns:
-        Success message with count of indexed documents
+    :return: Success message with count of indexed documents
+
+    :raises HTTPException: If re-indexing fails
     """
     try:
         from .indexer.indexer import index_documents
@@ -305,17 +303,15 @@ async def reindex_documents():
 
 
 @app.get("/download/{filename}")
-async def download_file(filename: str):
+async def download_file(filename: str) -> FileResponse:
     """Download a file from the data directory.
 
-    Args:
-        filename: Name of the file to download
+    :param filename: Name of the file to download
+    :return: File response for download
 
-    Returns:
-        File response for download
+    :raises HTTPException: If file not found
     """
     from .indexer.config import DATA_DIR
-    import os
 
     file_path = DATA_DIR / filename
 
@@ -333,11 +329,6 @@ async def download_file(filename: str):
 docs_path = Path(__file__).parent.parent / 'docs'
 if docs_path.exists():
     app.mount("/docs", StaticFiles(directory=str(docs_path)), name="docs")
-
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
 
 
 if __name__ == "__main__":

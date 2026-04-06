@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-from .config import DB_PATH
+from src.indexer.config import DB_PATH
 
 
 def setup_logging(
@@ -15,16 +15,12 @@ def setup_logging(
     log_file: Optional[str] = None,
     format_string: Optional[str] = None
 ) -> logging.Logger:
-    """
-    Set up logging configuration.
+    """Set up logging configuration.
 
-    Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-        log_file: Optional log file path
-        format_string: Optional custom format string
-
-    Returns:
-        Logger instance
+    :param level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    :param log_file: Optional log file path
+    :param format_string: Optional custom format string
+    :return: Logger instance
     """
     if format_string is None:
         format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from pathlib import Path
 from typing import List
 
 from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
-from .exceptions import ConfigurationError
+from src.indexer.exceptions import ConfigurationError
+
+logger = logging.getLogger(__name__)
 
 
 class IndexerConfig(BaseSettings):
@@ -36,23 +39,41 @@ class IndexerConfig(BaseSettings):
     enable_api_key_auth: bool = Field(default=False, description="Enable API key authentication")
 
     @field_validator('document_folders')
+    @classmethod
     def validate_document_folders(cls, v: List[str]) -> List[str]:
-        """Validate document folders exist."""
+        """Validate document folders exist.
+
+        :param v: List of folder paths to validate
+        :return: Validated list of folder paths
+        :raises ValueError: If any folder does not exist
+        """
         for folder in v:
             if not Path(folder).exists():
                 raise ValueError(f"Document folder does not exist: {folder}")
         return v
 
     @field_validator('ollama_base_url')
+    @classmethod
     def validate_ollama_url(cls, v: str) -> str:
-        """Validate Ollama URL format."""
+        """Validate Ollama URL format.
+
+        :param v: Ollama base URL to validate
+        :return: Validated URL
+        :raises ValueError: If URL does not start with http:// or https://
+        """
         if not v.startswith(('http://', 'https://')):
             raise ValueError("Ollama base URL must start with http:// or https://")
         return v
 
     @field_validator('ollama_timeout')
+    @classmethod
     def validate_timeout(cls, v: int) -> int:
-        """Validate timeout is positive."""
+        """Validate timeout is positive.
+
+        :param v: Timeout value to validate
+        :return: Validated timeout value
+        :raises ValueError: If timeout is not positive
+        """
         if v <= 0:
             raise ValueError("Timeout must be positive")
         return v
@@ -96,17 +117,15 @@ ENABLE_API_KEY_AUTH = config.enable_api_key_auth
 # Cache file for tracking indexed documents
 CACHE_FILE = CHROMADB_PATH / 'document_cache.json'
 
+
 def compute_file_hash(filepath: str) -> str:
-    """
-    Compute a hash of a file's content.
+    """Compute a hash of a file's content.
 
-    Args:
-        filepath: Path to the file
-
-    Returns:
-        str: MD5 hash of the file content
+    :param filepath: Path to the file
+    :return: MD5 hash of the file content
+    :raises FileNotFoundError: If file does not exist
+    :raises IOError: If file cannot be read
     """
-    import hashlib
     hash_md5 = hashlib.md5()
     with open(filepath, 'rb') as f:
         for chunk in iter(lambda: f.read(4096), b''):
@@ -115,27 +134,27 @@ def compute_file_hash(filepath: str) -> str:
 
 
 def load_cache() -> dict:
-    """
-    Load the document cache from disk.
+    """Load the document cache from disk.
 
-    Returns:
-        dict: Cache data with file hashes
+    :return: Cache data with file hashes
+    :raises FileNotFoundError: If cache file does not exist
+    :raises IOError: If cache file cannot be read
     """
     if CACHE_FILE.exists():
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning("Failed to load cache: %s", str(e))
             return {}
     return {}
 
 
 def save_cache(cache: dict) -> None:
-    """
-    Save the document cache to disk.
+    """Save the document cache to disk.
 
-    Args:
-        cache: Cache data to save
+    :param cache: Cache data to save
+    :raises IOError: If cache file cannot be written
     """
     CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(CACHE_FILE, 'w', encoding='utf-8') as f:

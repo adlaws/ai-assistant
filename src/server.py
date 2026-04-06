@@ -26,25 +26,38 @@ class DocumentHandler(BaseHTTPRequestHandler):
     """Custom request handler that serves ChromaDB data and the SPA."""
 
     protocol_version = 'HTTP/1.1'
-    chroma_db_path = None
-    root_path = None
+    chroma_db_path: str | None = None
+    root_path: str | None = None
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: tuple, **kwargs: dict) -> None:
+        """Initialize the request handler.
+
+        :param args: Positional arguments passed to parent class
+        :param kwargs: Keyword arguments passed to parent class
+        """
         super().__init__(*args, **kwargs)
         self.root_path = kwargs.get('root_path',
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-    def log_message(self, format, *args):
-        """Log messages."""
+    def log_message(self, format: str, *args: str) -> None:
+        """Log messages.
+
+        :param format: Log format string
+        :param args: Format arguments
+        """
         import traceback
         try:
             sys.stdout.write(f"{self.address_string()} - {format % args}\n")
             sys.stdout.flush()
-        except:
+        except Exception:
             pass
 
-    def handle_error(self, status, message):
-        """Handle errors with detailed logging."""
+    def handle_error(self, status: int, message: str) -> None:
+        """Handle errors with detailed logging.
+
+        :param status: HTTP status code
+        :param message: Error message
+        """
         import traceback
         sys.stderr.write(f"\n=== ERROR HANDLED ===\n")
         sys.stderr.write(f"Path: {self.path}\n")
@@ -54,8 +67,12 @@ class DocumentHandler(BaseHTTPRequestHandler):
         traceback.print_exc()
         sys.stderr.write("\n\n")
 
-    def send_json_response(self, data, status=200):
-        """Send a JSON response."""
+    def send_json_response(self, data: dict, status: int = 200) -> None:
+        """Send a JSON response.
+
+        :param data: JSON data to send
+        :param status: HTTP status code
+        """
         response = json.dumps(data, indent=2)
         self.send_response(status)
         self.send_header('Content-Type', 'application/json')
@@ -64,8 +81,12 @@ class DocumentHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(response.encode())
 
-    def send_html_response(self, html, status=200):
-        """Send an HTML response - handles both bytes and str."""
+    def send_html_response(self, html: bytes | str, status: int = 200) -> None:
+        """Send an HTML response - handles both bytes and str.
+
+        :param html: HTML content as bytes or string
+        :param status: HTTP status code
+        """
         if isinstance(html, str):
             response = html.encode('utf-8')
         else:
@@ -78,8 +99,11 @@ class DocumentHandler(BaseHTTPRequestHandler):
         self.wfile.write(response)
         self.wfile.flush()
 
-    def handle_root(self):
-        """Serve the web interface or API info."""
+    def handle_root(self) -> None:
+        """Serve the web interface or API info.
+
+        :raises Exception: If serving the web interface fails
+        """
         try:
             # Build path to spa.html
             spa_path = os.path.join(self.root_path, 'docs', 'spa.html')
@@ -123,8 +147,11 @@ class DocumentHandler(BaseHTTPRequestHandler):
             traceback.print_exc(file=sys.stderr)
             self.send_json_response({'error': str(e)}, 500)
 
-    def do_GET(self):
-        """Handle GET requests."""
+    def do_GET(self) -> None:
+        """Handle GET requests.
+
+        :raises Exception: If request handling fails
+        """
         parsed_path = urlparse(self.path)
         path = parsed_path.path
         query_params = parse_qs(parsed_path.query)
@@ -165,8 +192,11 @@ class DocumentHandler(BaseHTTPRequestHandler):
             traceback.print_exc(file=sys.stderr)
             self.send_json_response({'error': str(e)}, 500)
 
-    def do_POST(self):
-        """Handle POST requests."""
+    def do_POST(self) -> None:
+        """Handle POST requests.
+
+        :raises Exception: If request handling fails
+        """
         if self.path == '/search':
             try:
                 content_length = int(self.headers.get('Content-Length', 0))
@@ -183,11 +213,15 @@ class DocumentHandler(BaseHTTPRequestHandler):
         else:
             self.send_json_response({'error': 'Not found'}, 404)
 
-    def handle_search(self, query):
-        """Handle text-based search queries."""
+    def handle_search(self, query: str) -> None:
+        """Handle text-based search queries.
+
+        :param query: Search query string
+        :raises Exception: If search fails
+        """
         try:
             # Import required components dynamically to avoid circular dependency issues on initial load
-            from src.indexer.chroma_client import create_client as create_chroma_client
+            from src.chroma_client import create_client as create_chroma_client
 
             # Query ChromaDB using the search method (which handles embedding generation internally)
             chroma_client = create_chroma_client()
@@ -225,11 +259,14 @@ class DocumentHandler(BaseHTTPRequestHandler):
             print(error_msg, flush=True)
             self.send_json_response({'error': str(e)}, 500)
 
-    def handle_documents(self):
-        """Return all indexed documents."""
+    def handle_documents(self) -> None:
+        """Return all indexed documents.
+
+        :raises Exception: If document retrieval fails
+        """
         try:
             # Import required components dynamically
-            from src.indexer.chroma_client import create_client
+            from src.chroma_client import create_client
             from src.indexer.config import COLLECTION_NAME, DB_PATH
 
             client = create_client(DB_PATH)
@@ -242,10 +279,13 @@ class DocumentHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json_response({'error': str(e)}, 500)
 
-    def handle_count(self):
-        """Return document count."""
+    def handle_count(self) -> None:
+        """Return document count.
+
+        :raises Exception: If count retrieval fails
+        """
         try:
-            from src.indexer.chroma_client import create_client
+            from src.chroma_client import create_client
             from src.indexer.config import DB_PATH
 
             client = create_client(DB_PATH)
@@ -256,10 +296,13 @@ class DocumentHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json_response({'error': str(e)}, 500)
 
-    def handle_index(self):
-        """Handle document indexing via API."""
+    def handle_index(self) -> None:
+        """Handle document indexing via API.
+
+        :raises Exception: If indexing fails
+        """
         try:
-            from src.indexer.chroma_client import create_client
+            from src.chroma_client import create_client
             from src.indexer.indexer import index_documents
             from src.indexer.config import DB_PATH, DATA_DIR
 
@@ -278,8 +321,13 @@ class DocumentHandler(BaseHTTPRequestHandler):
             self.send_json_response({'error': str(e)}, 500)
 
 
-def run_server(host='127.0.0.1', port=8000, chroma_db_path=None):
-    """Start the web server and run initial indexing."""
+def run_server(host: str = '127.0.0.1', port: int = 8000, chroma_db_path: str | None = None) -> None:
+    """Start the web server and run initial indexing.
+
+    :param host: Host address to bind to
+    :param port: Port number to listen on
+    :param chroma_db_path: Optional path to ChromaDB storage
+    """
     print(f"Starting server on http://{host}:{port}")
     print(f"Open http://localhost:{port} in your browser")
     print("\nTest questions:")
@@ -302,7 +350,7 @@ def run_server(host='127.0.0.1', port=8000, chroma_db_path=None):
     # --- INITIALIZATION STEP ADDED ---
     print("\n[INFO] Attempting initial document indexing...")
     try:
-        from src.indexer.chroma_client import create_client
+        from src.chroma_client import create_client
         from src.indexer.indexer import index_documents
         from src.indexer.config import DB_PATH, DATA_DIR
         chroma_client = create_client(DB_PATH)

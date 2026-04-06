@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import json
 from abc import ABC, abstractmethod
 from typing import Type
+
 import pandas as pd
 import hashlib
 from io import BytesIO
@@ -14,7 +16,9 @@ from pypdf import PdfReader
 from docx import Document
 from PIL import Image
 
-from .exceptions import FileProcessingError
+from src.indexer.exceptions import FileProcessingError
+
+logger = logging.getLogger(__name__)
 
 
 class BaseHandler(ABC):
@@ -23,30 +27,23 @@ class BaseHandler(ABC):
     def __init__(self, filepath: str) -> None:
         """Initialize handler with file path.
 
-        Args:
-            filepath: Path to the file to handle
+        :param filepath: Path to the file to handle
         """
         self.filepath = filepath
 
     @abstractmethod
     def load_document(self) -> str:
-        """
-        Load the document content.
+        """Load the document content.
 
-        Returns:
-            str: Document text content
-
-        Raises:
-            FileProcessingError: If loading fails
+        :return: Document text content
+        :raises FileProcessingError: If loading fails
         """
         pass
 
     def get_filename(self) -> str:
-        """
-        Get the filename.
+        """Get the filename.
 
-        Returns:
-            str: Filename
+        :return: Filename
         """
         return os.path.basename(self.filepath)
 
@@ -55,16 +52,17 @@ class TextHandler(BaseHandler):
     """Handler for text files (.txt, .md)."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize text handler.
+
+        :param filepath: Path to the text file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
         """Load text file content.
 
-        Returns:
-            str: File content
-
-        Raises:
-            FileProcessingError: If file cannot be read
+        :return: File content
+        :raises FileProcessingError: If file cannot be read
         """
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
@@ -79,11 +77,8 @@ class MarkdownHandler(TextHandler):
     def load_document(self) -> str:
         """Load markdown file content.
 
-        Returns:
-            str: File content
-
-        Raises:
-            FileProcessingError: If file cannot be read
+        :return: File content
+        :raises FileProcessingError: If file cannot be read
         """
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
@@ -96,16 +91,17 @@ class CSVHandler(BaseHandler):
     """Handler for CSV files."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize CSV handler.
+
+        :param filepath: Path to the CSV file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
         """Load CSV file as formatted string.
 
-        Returns:
-            str: CSV content as string
-
-        Raises:
-            FileProcessingError: If CSV cannot be read
+        :return: CSV content as string
+        :raises FileProcessingError: If CSV cannot be read
         """
         try:
             df = pd.read_csv(self.filepath)
@@ -118,16 +114,17 @@ class JSONHandler(BaseHandler):
     """Handler for JSON files."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize JSON handler.
+
+        :param filepath: Path to the JSON file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
         """Load JSON file as formatted string.
 
-        Returns:
-            str: JSON content as formatted string
-
-        Raises:
-            FileProcessingError: If JSON cannot be read
+        :return: JSON content as formatted string
+        :raises FileProcessingError: If JSON cannot be read
         """
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
@@ -140,16 +137,17 @@ class PythonHandler(BaseHandler):
     """Handler for Python files."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize Python handler.
+
+        :param filepath: Path to the Python file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
         """Load Python file content.
 
-        Returns:
-            str: File content
-
-        Raises:
-            FileProcessingError: If file cannot be read
+        :return: File content
+        :raises FileProcessingError: If file cannot be read
         """
         try:
             with open(self.filepath, 'r', encoding='utf-8') as f:
@@ -162,21 +160,24 @@ class PDFHandler(BaseHandler):
     """Handler for PDF files."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize PDF handler.
+
+        :param filepath: Path to the PDF file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
-        """Extract text from PDF file.
+        """Load PDF file as text.
 
-        Returns:
-            str: Extracted text content
-
-        Raises:
-            FileProcessingError: If PDF cannot be read
+        :return: PDF text content
+        :raises FileProcessingError: If PDF cannot be read
         """
         try:
             reader = PdfReader(self.filepath)
-            text_chunks = [page.extract_text() or "" for page in reader.pages]
-            return "".join(text_chunks)
+            text = ""
+            for page in reader.pages:
+                text += page.extract_text() or ""
+            return text
         except Exception as e:
             raise FileProcessingError(f"Failed to read PDF file {self.filepath}: {e}") from e
 
@@ -185,16 +186,17 @@ class WordHandler(BaseHandler):
     """Handler for Word documents (.docx)."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize Word handler.
+
+        :param filepath: Path to the Word document
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
-        """Extract text from Word document.
+        """Load Word document as text.
 
-        Returns:
-            str: Extracted text content
-
-        Raises:
-            FileProcessingError: If document cannot be read
+        :return: Document text content
+        :raises FileProcessingError: If document cannot be read
         """
         try:
             doc = Document(self.filepath)
@@ -203,154 +205,59 @@ class WordHandler(BaseHandler):
             raise FileProcessingError(f"Failed to read Word document {self.filepath}: {e}") from e
 
 
-class PNGHandler(BaseHandler):
-    """Handler for PNG images."""
+class ImageHandler(BaseHandler):
+    """Handler for image files."""
 
     def __init__(self, filepath: str) -> None:
+        """Initialize image handler.
+
+        :param filepath: Path to the image file
+        """
         super().__init__(filepath)
 
     def load_document(self) -> str:
-        """Extract image metadata.
+        """Load image file as base64 string.
 
-        Returns:
-            str: Image metadata description
-
-        Raises:
-            FileProcessingError: If image cannot be read
+        :return: Base64 encoded image
+        :raises FileProcessingError: If image cannot be read
         """
         try:
             with Image.open(self.filepath) as img:
-                # Get image dimensions and format
-                width, height = img.size
-                mode = img.mode
-                format_name = img.format
-
-                return f"Image: {format_name} ({width}x{height}, mode={mode})"
+                buffered = BytesIO()
+                img.save(buffered, format="PNG")
+                return f"Image: {self.get_filename()}\nBase64: {buffered.getvalue()!r}"
         except Exception as e:
-            raise FileProcessingError(f"Failed to read PNG image {self.filepath}: {e}") from e
+            raise FileProcessingError(f"Failed to read image file {self.filepath}: {e}") from e
 
 
-class JPGHandler(BaseHandler):
-    """Handler for JPG images."""
-
-    def __init__(self, filepath: str) -> None:
-        super().__init__(filepath)
-
-    def load_document(self) -> str:
-        """Extract image metadata.
-
-        Returns:
-            str: Image metadata description
-
-        Raises:
-            FileProcessingError: If image cannot be read
-        """
-        try:
-            with Image.open(self.filepath) as img:
-                width, height = img.size
-                mode = img.mode
-                format_name = img.format
-
-                return f"Image: {format_name} ({width}x{height}, mode={mode})"
-        except Exception as e:
-            raise FileProcessingError(f"Failed to read JPG image {self.filepath}: {e}") from e
-
-
-class JPEGHandler(JPGHandler):
-    """Handler for JPEG images."""
-    pass
-
-
-class GIFHandler(BaseHandler):
-    """Handler for GIF images."""
-
-    def __init__(self, filepath: str) -> None:
-        super().__init__(filepath)
-
-    def load_document(self) -> str:
-        """Extract image metadata including frame count.
-
-        Returns:
-            str: Image metadata description
-
-        Raises:
-            FileProcessingError: If image cannot be read
-        """
-        try:
-            with Image.open(self.filepath) as img:
-                width, height = img.size
-                mode = img.mode
-                format_name = img.format
-                n_frames = getattr(img, 'n_frames', 1)
-
-                return f"Image: {format_name} ({width}x{height}, mode={mode}, frames={n_frames})"
-        except Exception as e:
-            raise FileProcessingError(f"Failed to read GIF image {self.filepath}: {e}") from e
-
-
-class BMPHandler(BaseHandler):
-    """Handler for BMP images."""
-
-    def __init__(self, filepath: str) -> None:
-        super().__init__(filepath)
-
-    def load_document(self) -> str:
-        """Extract image metadata.
-
-        Returns:
-            str: Image metadata description
-
-        Raises:
-            FileProcessingError: If image cannot be read
-        """
-        try:
-            with Image.open(self.filepath) as img:
-                width, height = img.size
-                mode = img.mode
-                format_name = img.format
-
-                return f"Image: {format_name} ({width}x{height}, mode={mode})"
-        except Exception as e:
-            raise FileProcessingError(f"Failed to read BMP image {self.filepath}: {e}") from e
+# Map file extensions to handlers
+FILE_HANDLERS: dict[str, Type[BaseHandler]] = {
+    '.txt': TextHandler,
+    '.md': MarkdownHandler,
+    '.csv': CSVHandler,
+    '.json': JSONHandler,
+    '.py': PythonHandler,
+    '.pdf': PDFHandler,
+    '.docx': WordHandler,
+    '.png': ImageHandler,
+    '.jpg': ImageHandler,
+    '.jpeg': ImageHandler,
+    '.gif': ImageHandler,
+    '.bmp': ImageHandler,
+}
 
 
 def get_handler(filepath: str) -> BaseHandler:
+    """Get appropriate handler for a file.
+
+    :param filepath: Path to the file
+    :return: Appropriate handler instance
+    :raises FileProcessingError: If no handler is available for the file type
     """
-    Get the appropriate handler for a file based on its extension.
-
-    Args:
-        filepath: Path to the file
-
-    Returns:
-        BaseHandler: Handler instance for the file type
-
-    Raises:
-        FileProcessingError: If no handler is available or path is invalid
-    """
-    # Validate filepath to prevent path traversal
-    if not filepath or '..' in filepath or filepath.startswith('/'):
-        raise FileProcessingError(f"Invalid filepath: {filepath}")
-
     _, ext = os.path.splitext(filepath.lower())
-
-    handlers: dict[str, Type[BaseHandler]] = {
-        '.txt': TextHandler,
-        '.md': MarkdownHandler,
-        '.csv': CSVHandler,
-        '.json': JSONHandler,
-        '.py': PythonHandler,
-        '.pdf': PDFHandler,
-        '.docx': WordHandler,
-        '.png': PNGHandler,
-        '.jpg': JPGHandler,
-        '.jpeg': JPEGHandler,
-        '.gif': GIFHandler,
-        '.bmp': BMPHandler,
-    }
-
-    handler_class = handlers.get(ext)
+    handler_class = FILE_HANDLERS.get(ext)
 
     if handler_class is None:
-        raise FileProcessingError(f"No handler available for file extension: {ext}")
+        raise FileProcessingError(f"No handler available for file type: {ext}")
 
     return handler_class(filepath)
