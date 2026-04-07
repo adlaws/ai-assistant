@@ -222,6 +222,8 @@ class DocumentHandler(BaseHTTPRequestHandler):
         try:
             # Import required components dynamically to avoid circular dependency issues on initial load
             from src.chroma_client import create_client as create_chroma_client
+            from src.indexer.api_client import create_client as create_ollama_client
+            from src.indexer.config import LLM_MODEL, EMBEDDING_MODEL, OLLAMA_BASE_URL
 
             # Query ChromaDB using the search method (which handles embedding generation internally)
             chroma_client = create_chroma_client()
@@ -239,17 +241,47 @@ class DocumentHandler(BaseHTTPRequestHandler):
                 ids = results['ids'][0] if results.get('ids') else []  # List of document IDs
                 distances = results['distances'][0] if results.get('distances') else []  # List of distances
 
-                for i, doc_content in enumerate(documents):
-                    metadata = metadatas[i] if i < len(metadatas) else {}
-                    doc_id = ids[i] if i < len(ids) else f"doc_{i}"
-                    distance = distances[i] if i < len(distances) else None
+                # Build context from retrieved documents
+                context_parts = []
+                for i, (doc_content, metadata) in enumerate(zip(documents, metadatas)):
+                    # Use 'source' key from metadata (not 'filename')
+                    source = metadata.get('source', 'unknown')
+                    filepath = metadata.get('filepath', '')
+                    filetype = metadata.get('type', '')
+                    context_parts.append(f"=== Document: {source} ===\n{doc_content}")
 
-                    results_list.append({
-                        'id': doc_id,
-                        'content': doc_content,
-                        'metadata': metadata,
-                        'distance': distance
-                    })
+                context = '\n\n---\n\n'.join(context_parts)
+
+                # Generate summary response using LLM
+                ollama_client = create_ollama_client()
+                prompt = f"""You are an AI assistant with access to documents. Please answer the following question based on the provided context:
+
+Context: {context}
+
+Question: {query}
+
+Answer:
+"""
+
+                response = ollama_client.generate_response(prompt)
+
+                # Parse response to extract answer and references
+                answer = response.strip()
+
+                # Build references list using 'source' from metadata
+                references = []
+                for i, (doc_content, metadata) in enumerate(zip(documents, metadatas)):
+                    source = metadata.get('source', 'unknown')
+                    references.append(f"Source: {source}")
+
+                results_list.append({
+                    'answer': answer,
+                    'references': references,
+                    'documents': documents,
+                    'metadatas': metadatas,
+                    'ids': ids,
+                    'distances': distances
+                })
 
             self.send_json_response({'results': results_list})
 

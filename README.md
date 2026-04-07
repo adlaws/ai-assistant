@@ -11,6 +11,18 @@ A Retrieval-Augmented Generation (RAG) system for indexing and searching documen
 * **Web Interface**: FastAPI-based REST API with interactive search
 * **CLI Tool**: Command-line interface for indexing and querying
 
+## Quick Start
+
+Assuming all pre-requisites are met (see below), you can start the server by activating the Python
+virtualenv and running the server.
+
+The virtualenv is contained in the `.venv` folder in the project root, so the following one-liner
+run in Powershell from the root folder should start the server:
+
+```powershell
+.\.venv\Scripts\activate && python src/server.py
+```
+
 ## Prerequisites
 
 * Python 3.10+
@@ -77,12 +89,14 @@ python -m src.indexer.main
 ```
 
 This will:
+
 * Scan the `data/` directory for supported files
 * Generate embeddings using Ollama
 * Store vectors in ChromaDB
 * Provide an interactive query interface
 
 **Supported file types**:
+
 * `.txt`, `.md` - Text files
 * `.pdf` - PDF documents
 * `.docx` - Word documents
@@ -182,16 +196,19 @@ data/                    # Sample documents
 ### Common Issues
 
 **Ollama connection failed**:
+
 * Ensure Ollama is running: `ollama serve`
 * Check models are pulled: `ollama list`
 * Verify base URL in configuration
 
 **No documents found**:
+
 * Check files exist in configured document folders
 * Ensure files have supported extensions
 * Check file permissions
 
 **Import errors**:
+
 * Install dependencies: `pip install -r requirements.txt`
 * Ensure Python 3.10+ is used
 

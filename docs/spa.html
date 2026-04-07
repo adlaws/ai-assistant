@@ -10,7 +10,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
@@ -18,19 +18,19 @@
             padding: 20px;
             color: #eee;
         }
-        
+
         .container {
             max-width: 900px;
             margin: 0 auto;
         }
-        
+
         h1 {
             text-align: center;
             margin-bottom: 20px;
             font-size: 2em;
             color: #00d4ff;
         }
-        
+
         .search-box {
             background: rgba(255, 255, 255, 0.1);
             padding: 20px;
@@ -38,7 +38,7 @@
             margin-bottom: 20px;
             backdrop-filter: blur(10px);
         }
-        
+
         .search-box input {
             width: 100%;
             padding: 15px;
@@ -49,28 +49,28 @@
             color: #fff;
             font-family: inherit;
         }
-        
+
         .search-box input::placeholder {
             color: rgba(255, 255, 255, 0.5);
         }
-        
+
         .search-box input:focus {
             outline: none;
             border-color: #00d4ff;
             background: rgba(0, 0, 0, 0.5);
         }
-        
+
         .loading {
             text-align: center;
             padding: 20px;
             color: #00d4ff;
             display: none;
         }
-        
+
         .results {
             display: none;
         }
-        
+
         .result-card {
             background: rgba(255, 255, 255, 0.05);
             padding: 15px;
@@ -78,20 +78,42 @@
             margin-bottom: 10px;
             border: 1px solid rgba(0, 212, 255, 0.2);
         }
-        
+
+        .answer {
+            font-size: 16px;
+            line-height: 1.6;
+            margin-bottom: 10px;
+            color: #fff;
+            background: rgba(0, 212, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #00d4ff;
+        }
+
+        .references {
+            font-size: 12px;
+            color: #00d4ff;
+            font-family: monospace;
+            margin-top: 8px;
+        }
+
+        .reference-item {
+            margin: 4px 0;
+        }
+
         .result-snippet {
             font-size: 14px;
             line-height: 1.6;
             margin-bottom: 8px;
             color: #ccc;
         }
-        
+
         .result-file {
             font-size: 12px;
             color: #00d4ff;
             font-family: monospace;
         }
-        
+
         .error {
             background: rgba(255, 50, 50, 0.2);
             padding: 15px;
@@ -99,7 +121,7 @@
             margin-bottom: 20px;
             border: 1px solid rgba(255, 50, 50, 0.3);
         }
-        
+
         .index-box {
             background: rgba(255, 100, 100, 0.1);
             padding: 15px;
@@ -108,7 +130,7 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 100, 100, 0.3);
         }
-        
+
         .index-box button {
             width: 100%;
             padding: 12px;
@@ -122,23 +144,23 @@
             transition: all 0.3s ease;
             font-family: inherit;
         }
-        
+
         .index-box button:hover {
             background: rgba(255, 100, 100, 0.4);
             border-color: #ff6b6b;
             color: #ff5252;
         }
-        
+
         .index-box button:active {
             background: rgba(255, 100, 100, 0.6);
             transform: scale(0.98);
         }
-        
+
         .index-box button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-        
+
         footer {
             text-align: center;
             margin-top: 40px;
@@ -150,29 +172,29 @@
 <body>
     <div class="container">
         <h1>🔍 Semantic Document Indexer</h1>
-        
+
         <div class="search-box">
             <input type="text" id="searchInput" placeholder="Enter your question (e.g., 'What is AI?')..." autofocus>
         </div>
-        
+
         <div class="loading" id="loading">
             Searching documents...
         </div>
-        
+
         <div class="error" id="error" style="display: none;"></div>
-        
+
         <div class="results" id="results"></div>
-        
+
         <div class="index-box" id="indexBox" style="display: none;">
             <button id="indexBtn">📚 Index Documents</button>
             <div id="indexStatus"></div>
         </div>
-        
+
         <footer>
             Built with Ollama and ChromaDB
         </footer>
     </div>
-    
+
     <script>
         async function search(query) {
             try {
@@ -180,53 +202,69 @@
                 document.getElementById('error').style.display = 'none';
                 document.getElementById('results').style.display = 'none';
                 document.getElementById('results').innerHTML = '';
-                
+
                 const response = await fetch(`/search?query=${encodeURIComponent(query)}`);
                 const data = await response.json();
-                
+
                 document.getElementById('loading').style.display = 'none';
-                
+
                 if (data.results && data.results.length > 0) {
                     document.getElementById('error').style.display = 'none';
                     document.getElementById('results').style.display = 'block';
-                    
+
                     data.results.forEach((result, index) => {
                         const card = document.createElement('div');
                         card.className = 'result-card';
-                        
-                         let fileInfo = '';
-                         if (result.metadata) {
-                             // Display all available metadata
-                             if (result.metadata.type) {
-                                 fileInfo += `<div class="result-file">Type: ${result.metadata.type}</div>`;
-                             }
-                             if (result.metadata.filepath) {
-                                 fileInfo += `<div class="result-file">Path: ${result.metadata.filepath}</div>`;
-                             }
-                             if (result.metadata.source) {
-                                 fileInfo += `<div class="result-file">Source: ${result.metadata.source}</div>`;
-                             }
-                             if (result.metadata.page) {
-                                 fileInfo += `<div class="result-file">Page: ${result.metadata.page}</div>`;
-                             }
-                             if (result.metadata.chunk) {
-                                 fileInfo += `<div class="result-file">Chunk: ${result.metadata.chunk}</div>`;
-                             }
-                             // Add any other metadata fields
-                             Object.keys(result.metadata).forEach(key => {
-                                 if (key !== 'type' && key !== 'filepath' && key !== 'source' && key !== 'page' && key !== 'chunk') {
-                                     fileInfo += `<div class="result-file">${key}: ${result.metadata[key]}</div>`;
-                                 }
-                             });
-                         }
-                         
-                         card.innerHTML = `
-                             <div class="result-snippet">${result.content}</div>
-                             ${fileInfo}
-                         `;
-                         
-                         document.getElementById('results').appendChild(card);
-                     });
+
+                        // Check if result has an 'answer' field (new format)
+                        if (result.answer) {
+                            // Display the AI-generated answer
+                            let html = `<div class="answer"><strong>Answer:</strong><br>${result.answer}</div>`;
+
+                            // Display references
+                            if (result.references && result.references.length > 0) {
+                                html += `<div class="references">`;
+                                result.references.forEach((ref, refIndex) => {
+                                    html += `<div class="reference-item">📄 ${ref}</div>`;
+                                });
+                                html += `</div>`;
+                            }
+
+                            card.innerHTML = html;
+                        } else {
+                            // Fallback to old format (raw content)
+                            let fileInfo = '';
+                            if (result.metadata) {
+                                if (result.metadata.type) {
+                                    fileInfo += `<div class="result-file">Type: ${result.metadata.type}</div>`;
+                                }
+                                if (result.metadata.filepath) {
+                                    fileInfo += `<div class="result-file">Path: ${result.metadata.filepath}</div>`;
+                                }
+                                if (result.metadata.source) {
+                                    fileInfo += `<div class="result-file">Source: ${result.metadata.source}</div>`;
+                                }
+                                if (result.metadata.page) {
+                                    fileInfo += `<div class="result-file">Page: ${result.metadata.page}</div>`;
+                                }
+                                if (result.metadata.chunk) {
+                                    fileInfo += `<div class="result-file">Chunk: ${result.metadata.chunk}</div>`;
+                                }
+                                Object.keys(result.metadata).forEach(key => {
+                                    if (key !== 'type' && key !== 'filepath' && key !== 'source' && key !== 'page' && key !== 'chunk') {
+                                        fileInfo += `<div class="result-file">${key}: ${result.metadata[key]}</div>`;
+                                    }
+                                });
+                            }
+
+                            card.innerHTML = `
+                                <div class="result-snippet">${result.content}</div>
+                                ${fileInfo}
+                            `;
+                        }
+
+                        document.getElementById('results').appendChild(card);
+                    });
                 } else {
                     document.getElementById('error').style.display = 'block';
                     document.getElementById('error').textContent = 'No results found. Try a different query.';
@@ -237,7 +275,7 @@
                 document.getElementById('error').textContent = `Error: ${error.message}`;
             }
         }
-    
+
         document.getElementById('searchInput').addEventListener('keydown', async (e) => {
             if (e.key === 'Enter') {
                 const query = e.target.value.trim();
@@ -247,7 +285,7 @@
                 }
             }
         });
-    
+
         // Enable Ctrl+K quick search
         document.addEventListener('keydown', async (e) => {
             if (e.ctrlKey && e.key === 'k') {
@@ -255,22 +293,22 @@
                 document.getElementById('searchInput').focus();
             }
         });
-    
+
         document.addEventListener('click', (e) => {
             if (e.target.id === 'searchInput') return;
             document.getElementById('searchInput').blur();
         });
-    
+
         // Index button handler
         document.getElementById('indexBtn').addEventListener('click', async () => {
             const indexBox = document.getElementById('indexBox');
             const indexBtn = document.getElementById('indexBtn');
             const indexStatus = document.getElementById('indexStatus');
-            
+
             indexBtn.disabled = true;
             indexStatus.textContent = 'Starting indexing...';
             indexBox.style.display = 'block';
-            
+
             try {
                 const response = await fetch('/index', {
                     method: 'POST',
@@ -278,9 +316,9 @@
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.status === 'success') {
                     indexStatus.style.color = '#4ade80';
                     indexStatus.textContent = `✅ ${data.message}`;
