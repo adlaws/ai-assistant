@@ -10,7 +10,7 @@ from chromadb.config import Settings
 from chromadb.utils import embedding_functions
 
 from src.indexer.api_client import create_client as create_ollama_client
-from src.indexer import index_file, get_file_handler
+from src.indexer import index_file, get_handler
 from src.indexer.config import COLLECTION_NAME, DB_PATH, IndexerConfig
 from src.indexer.exceptions import ChromaDBError, OllamaError
 

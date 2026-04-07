@@ -1,5 +1,4 @@
-"""
-Standalone API for AI assistant indexing.
+"""Standalone API for AI assistant indexing.
 Use src/indexer/indexer.py for full submodule functionality.
 """
 
@@ -8,7 +7,7 @@ from __future__ import annotations
 import logging
 import os
 
-from src.indexer.indexer import (
+from src.indexer.indexing import (
     index_file,
     _chunk_text,
     index_documents,
